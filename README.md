@@ -21,7 +21,11 @@ El `?v=13` salta la cache de GitHub (hasta 5 min).
 - **Candado propio V13** (`_G.__SPIDEY_V13_ACTIVO`): no se bloquea si ejecutaste el V8 antes.
 - **Compatibilidad Lua 5.1**: sin `+=`/`-=`, ASCII puro, shims de `math.clamp`,
   `table.find`, `table.clear`, `string.split`, `task`, `warn` si faltan.
-- **MIN 147.065 bytes** (menos que el V8: 152.964) para que el exploit lo compile.
+- **LIMITE DE 200 LOCALES (la causa real del "attempt to call a nil value")**:
+  el V8 tenia 178 locales activos y compilaba; el V13.9 tenia **201** y Lua 5.1
+  abortaba la compilacion. Ahora el V13.9 tiene **156** (margen de 44) y menos
+  de 60 upvalues por funcion. Verificado con compilador Lua 5.1 real.
+- **MIN 146.795 bytes** (menos que el V8: 152.964) para que el exploit lo compile.
 
 ---
 # Spiderscript V12.0 🕷️

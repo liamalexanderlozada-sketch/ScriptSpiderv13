@@ -3418,7 +3418,7 @@ if valor:IsA("Model") then return valor end
 return nil
 end
 
-local function senalesCarga(victima)
+function senalesCarga(victima)
 local senales = {}
 
 local g = valorBody(char, "Grabbed")
@@ -3443,7 +3443,7 @@ end
 return senales, vgv
 end
 
-local function estaTirado(victima)
+function estaTirado(victima)
 local vh = victima and victima:FindFirstChildOfClass("Humanoid")
 if not vh then return false end
 local ko = valorKO(victima)
@@ -3465,18 +3465,18 @@ if vr and vr.Anchored then return true end
 return false
 end
 
-local function distanciaCarga(victima)
+function distanciaCarga(victima)
 local a = char and char:FindFirstChild("HumanoidRootPart")
 local b = victima and victima:FindFirstChild("HumanoidRootPart")
 if not a or not b then return math.huge end
 return (a.Position - b.Position).Magnitude
 end
 
-local function victimaCerca(victima)
+function victimaCerca(victima)
 return distanciaCarga(victima) <= 16
 end
 
-local function diagnosticarCarga()
+function diagnosticarCarga()
 local hrpPropio = char and char:FindFirstChild("HumanoidRootPart")
 if not hrpPropio then return end
 local g = valorBody(char, "Grabbed")
@@ -3526,7 +3526,7 @@ print("[Spidey V13.9]   ningun cuerpo con Humanoid a menos de 40 studs")
 end
 end
 
-local function detectarCarga()
+function detectarCarga()
 if not char or not char.Parent then return nil, "sin personaje" end
 local hrpPropio = char:FindFirstChild("HumanoidRootPart")
 if not hrpPropio then return nil, "sin HumanoidRootPart" end
@@ -3560,11 +3560,11 @@ end
 return mejor, string.format("cuerpo derrribado (%.1f studs)", mejorDist)
 end
 
-local function toolControlEnMano()
+function toolControlEnMano()
 return char and char:FindFirstChild("Control") ~= nil
 end
 
-local function engancharControlTool(t)
+function engancharControlTool(t)
 if not t or not t:IsA("Tool") or t.Name ~= "Control" then return end
 if controlTool == t then return end
 for _, c in ipairs(controlConexiones) do
@@ -3590,7 +3590,7 @@ end
 end))
 end
 
-local function buscarControlTool()
+function buscarControlTool()
 controlTool = nil
 for _, c in ipairs(controlConexiones) do
 c:Disconnect()
@@ -3610,7 +3610,7 @@ end
 end
 end
 
-local function asegurarControlTool()
+function asegurarControlTool()
 if not sinServidor then return end
 local bp = player:FindFirstChild("Backpack")
 if not bp then return end
@@ -3636,7 +3636,7 @@ local CADENAS_EXTREMIDAD = {
 { "LeftUpperArm", "LeftLowerArm", "LeftHand", "Left Arm" },
 }
 
-local function partesDeCadena(victima, cadena)
+function partesDeCadena(victima, cadena)
 local partes = {}
 for _, nombre in ipairs(cadena) do
 local p = victima:FindFirstChild(nombre)
@@ -3645,7 +3645,7 @@ end
 return partes
 end
 
-local function extremidadAgarrada(victima)
+function extremidadAgarrada(victima)
 if not char or not victima or not victima.Parent then return nil, nil end
 local ref = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso") or hrp
 if not ref then return nil, nil end
@@ -3666,7 +3666,7 @@ local esBrazo = string.find(mejorCadena[1], "Arm", 1, true) ~= nil
 return partes, esBrazo
 end
 
-local function jointsExtremidad(victima, partes)
+function jointsExtremidad(victima, partes)
 local enCadena = {}
 for _, p in ipairs(partes) do enCadena[p] = true end
 local lista = {}
@@ -3686,7 +3686,7 @@ end
 return lista
 end
 
-local function soltarExtremidadFisica(partes, victima)
+function soltarExtremidadFisica(partes, victima)
 local centro = nil
 local vr = victima and victima:FindFirstChild("HumanoidRootPart")
 if vr then centro = vr.Position end
@@ -3707,7 +3707,7 @@ end
 end
 end
 
-local function arrancarExtremidadAhora()
+function arrancarExtremidadAhora()
 local ahora = os.clock()
 if ahora - ultimoArranque < 1 then return false end
 ultimoArranque = ahora
@@ -3789,7 +3789,7 @@ task.wait(0.4)
 end
 end)
 
-local function engancharArrancarTool(t)
+function engancharArrancarTool(t)
 if not t or not t:IsA("Tool") or t.Name ~= "Arrancar" then return end
 if arrancarTool == t then return end
 for _, c in ipairs(arrancarConexiones) do c:Disconnect() end
@@ -3804,7 +3804,7 @@ arrancarExtremidadAhora()
 end))
 end
 
-local function buscarArrancarTool()
+function buscarArrancarTool()
 arrancarTool = nil
 for _, c in ipairs(arrancarConexiones) do c:Disconnect() end
 table.clear(arrancarConexiones)
@@ -3822,7 +3822,7 @@ end
 end
 end
 
-local function asegurarArrancarTool()
+function asegurarArrancarTool()
 if not sinServidor then return end
 local bp = player:FindFirstChild("Backpack")
 if not bp then return end
@@ -3845,7 +3845,7 @@ buscarArrancarTool()
 task.wait(0.5)
 end
 end)
-local function quitarESP()
+function quitarESP()
 for _, datos in pairs(espDatos) do
 if datos.hl then datos.hl:Destroy() end
 if datos.bb then datos.bb:Destroy() end
@@ -3853,7 +3853,7 @@ end
 table.clear(espDatos)
 end
 
-local function crearESPVisual(modelo, nombre)
+function crearESPVisual(modelo, nombre)
 if not modelo or not modelo.Parent then return nil end
 local hl = Instance.new("Highlight")
 hl.Name = "SpideyESP"
@@ -3891,7 +3891,7 @@ bb.Parent = ancla
 return { hl = hl, bb = bb, modelo = modelo }
 end
 
-local function aplicarESPPJugador(p)
+function aplicarESPPJugador(p)
 if not espActivo or p == player then return end
 local c = p.Character
 if not c then return end
@@ -3907,7 +3907,7 @@ local creado = crearESPVisual(c, p.Name)
 if creado then espDatos[p] = creado end
 end
 
-local function ocultarESPDe(jugador)
+function ocultarESPDe(jugador)
 local datos = jugador and espDatos[jugador]
 if not datos then return nil end
 if datos.hl then datos.hl.Enabled = false end
@@ -3915,7 +3915,7 @@ if datos.bb then datos.bb.Enabled = false end
 return datos
 end
 
-local function restaurarESPDe(jugador, datos)
+function restaurarESPDe(jugador, datos)
 if not datos then return end
 if datos.hl and datos.hl.Parent then datos.hl.Enabled = true end
 if datos.bb and datos.bb.Parent then datos.bb.Enabled = true end
@@ -3955,7 +3955,7 @@ end
 return true
 end
 
-local function conectarESPJugador(p)
+function conectarESPJugador(p)
 if p == player then return end
 p.CharacterAdded:Connect(function()
 if not espActivo then return end
@@ -4003,7 +4003,7 @@ local esDuenoLock = esPropietarioLock(player)
 local bloqueado = nil
 local hlYoLock, hlElLock, lineaBeam, atYoLock, atElLock
 
-local function quitarVisualLock()
+function quitarVisualLock()
 local b = bloqueado
 bloqueado = nil
 if b and b.conexApuntado then
@@ -4021,7 +4021,7 @@ hum.AutoRotate = b.autoRotate
 end
 end
 
-local function crearHighlightLock(modelo)
+function crearHighlightLock(modelo)
 if not modelo or not modelo.Parent then return nil end
 local hl = Instance.new("Highlight")
 hl.Name = "SpideyLock"
@@ -4034,7 +4034,7 @@ hl.Parent = modelo
 return hl
 end
 
-local function crearLineaLock(modelo, c)
+function crearLineaLock(modelo, c)
 if not c or not c.Parent or not modelo or not modelo.Parent then return nil end
 local a = c:FindFirstChild("Head") or c:FindFirstChild("HumanoidRootPart")
 local b = modelo:FindFirstChild("Head") or modelo:FindFirstChild("HumanoidRootPart")
@@ -4060,7 +4060,7 @@ beam.Parent = workspace
 return beam, at1, at2
 end
 
-local function esArmaEscopetaCliente()
+function esArmaEscopetaCliente()
 if not char then return false end
 local t = char:FindFirstChildOfClass("Tool")
 if not t then return false end
@@ -4070,7 +4070,7 @@ or string.find(n, "double-barrel", 1, true) ~= nil
 or string.find(n, "escopeta", 1, true) ~= nil
 end
 
-local function puntoLockCliente(modelo)
+function puntoLockCliente(modelo)
 if not modelo or not modelo.Parent then return nil end
 local p
 if esArmaEscopetaCliente() then
@@ -4089,7 +4089,7 @@ end
 
 local gunHandlerParcheado = false
 local gunHandlerParcheando = false
-local function parchearGunHandler()
+function parchearGunHandler()
 if gunHandlerParcheado or gunHandlerParcheando then return true end
 gunHandlerParcheando = true
 local mods = RS:FindFirstChild("Modules")
@@ -4143,7 +4143,7 @@ parchearGunHandler()
 end
 end)
 
-local function resolverRemotoDH()
+function resolverRemotoDH()
 local mr = RS:FindFirstChild("MainRemotes")
 local directo = mr and mr:FindFirstChild("MainRemoteEvent")
 if directo and directo:IsA("RemoteEvent") then return directo end
@@ -4155,7 +4155,7 @@ end
 return nil
 end
 
-local function modeloBajoMouseLock()
+function modeloBajoMouseLock()
 if not mouse then return nil end
 local t = mouse.Target
 if not t then return nil end
@@ -4173,7 +4173,7 @@ end
 return nil
 end
 
-local function desbloquearLock(avisar)
+function desbloquearLock(avisar)
 if not sinServidor and avisar then RE_Lock:FireServer("CLEAR") end
 if not bloqueado then return false end
 quitarVisualLock()
@@ -4181,7 +4181,7 @@ mostrarHUD(nil)
 return true
 end
 
-local function bloquearModeloLock(modelo)
+function bloquearModeloLock(modelo)
 if not modelo or modelo == char or not modelo.Parent then return false end
 local h = modelo:FindFirstChildOfClass("Humanoid")
 local r = modelo:FindFirstChild("HumanoidRootPart")
@@ -4352,7 +4352,7 @@ end)
 
 local ultimoEnvioPose = 0
 
-local function vectorMovimiento()
+function vectorMovimiento()
 local dbg = player:GetAttribute("SpideyTestMove")
 if typeof(dbg) == "Vector3" then
 local v = Vector3.new(dbg.X, 0, dbg.Z)
@@ -4374,7 +4374,7 @@ if v.Magnitude > 1 then v = v.Unit end
 return v
 end
 
-local function animatorDe(hum)
+function animatorDe(hum)
 local a = hum and hum:FindFirstChildOfClass("Animator")
 if not a and hum then
 a = Instance.new("Animator")
@@ -4383,14 +4383,14 @@ end
 return a
 end
 
-local function normalizarIdAnimacion(valor)
+function normalizarIdAnimacion(valor)
 if type(valor) ~= "string" then return nil end
 return string.match(valor, "^rbxassetid://(%d+)$")
 or string.match(valor, "id=(%d+)")
 or string.match(valor, "^(%d+)$")
 end
 
-local function idsDeAnimate(victima, nombre)
+function idsDeAnimate(victima, nombre)
 local ids = {}
 local animate = victima:FindFirstChild("Animate")
 local seccion = animate and animate:FindFirstChild(nombre)
@@ -4405,7 +4405,7 @@ end
 return ids
 end
 
-local function idsRespaldo(rig, nombre)
+function idsRespaldo(rig, nombre)
 if rig == Enum.HumanoidRigType.R6 then
 if nombre == "idle" then return { "180435571" } end
 if nombre == "walk" then return { "180426354" } end
@@ -4422,7 +4422,7 @@ if nombre == "fall" then return { "507770583" } end
 return { "507777826" }
 end
 
-local function cargarTrackPoseyendo(animator, victima, nombre)
+function cargarTrackPoseyendo(animator, victima, nombre)
 local vh = victima:FindFirstChildOfClass("Humanoid")
 if not vh then return nil end
 
@@ -4460,7 +4460,7 @@ if trRespaldo then return trRespaldo end
 return primeroRespaldo
 end
 
-local function detenerTracksPoseyendo(animator)
+function detenerTracksPoseyendo(animator)
 for _, tr in ipairs(animator:GetPlayingAnimationTracks()) do
 pcall(function() tr:Stop(0.12) end)
 end
@@ -4625,7 +4625,7 @@ end
 return true
 end
 
-local function actualizarAnimacionPoseyendo(vector)
+function actualizarAnimacionPoseyendo(vector)
 local d = poseyendoDatos
 if not d or d.remoto or not d.animator then return end
 local moviendo = vector.Magnitude > 0.05
@@ -4703,7 +4703,7 @@ end
 end
 end
 
-local function terminarPoseyendoInterno(motivo)
+function terminarPoseyendoInterno(motivo)
 local d = poseyendoDatos
 local victima = poseyendoVictima
 poseyendo = false
@@ -4855,7 +4855,7 @@ end
 return terminarPoseyendoInterno(motivo)
 end
 
-local function validarPoseyendoActual()
+function validarPoseyendoActual()
 local d = poseyendoDatos
 if not d then return false end
 local victima = d.victima
@@ -4876,7 +4876,7 @@ end
 return true
 end
 
-local function actualizarPoseyendoLocal()
+function actualizarPoseyendoLocal()
 local ok, motivo = validarPoseyendoActual()
 if not ok then
 terminarPoseyendoLocal(motivo, true)
