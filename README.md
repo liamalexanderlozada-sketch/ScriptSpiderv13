@@ -3,8 +3,26 @@
 ## Loadstring principal (copia y pega en tu executor)
 
 ```lua
-loadstring(game:HttpGet("https://raw.githubusercontent.com/liamalexanderlozada-sketch/ScriptSpiderv13/main/Main.lua"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/liamalexanderlozada-sketch/ScriptSpiderv13/main/Main.lua?v=13"))()
 ```
+
+> El `?v=13` evita que GitHub te devuelva una copia vieja en cache (dura
+> hasta 5 minutos). Si acabas de actualizar el repo, este es el que debes usar.
+
+### Si aun sale "attempt to call a nil value", usa este loader de diagnostico
+
+```lua
+local src = game:HttpGet("https://raw.githubusercontent.com/liamalexanderlozada-sketch/ScriptSpiderv13/main/Main.lua?v=13")
+local fn, err = loadstring(src)
+if not fn then
+    warn("[Spider] NO COMPILO: " .. tostring(err))
+    return
+end
+fn()
+```
+
+Ese loader imprime el error exacto de compilacion (si lo hubiera) en vez de
+callarse, asi se puede corregir sin adivinar.
 
 Alternativa (misma carpeta que Spiderscriptv8):
 
