@@ -166,6 +166,16 @@ end
 end
 end
 
+local function romperUnionesCarga(controlador, victima)
+local lista = weldsCargaDe(controlador, victima)
+for _, w in ipairs(lista) do
+if w.Parent then
+pcall(function() w:Destroy() end)
+end
+end
+return #lista
+end
+
 local function esDuenoRedDe(modelo, dueno)
 if not modelo or not modelo.Parent or not dueno then return false end
 for _, p in ipairs(modelo:GetDescendants()) do
@@ -1089,6 +1099,9 @@ poseidoPor[e.victima] = nil
 e.victima:SetAttribute("SpideyPoseidoPor", nil)
 end
 pl:SetAttribute("SpideyPoseyendo", nil)
+for _, g in ipairs(e.guardaUniones or {}) do
+pcall(function() g:Disconnect() end)
+end
 
 restaurarControlador(e)
 restaurarVictima(e)
@@ -1179,6 +1192,25 @@ prepararVictima(e.datosV)
 prepararAnimacionesServer(e)
 ocultarControlador(e)
 ponerDueno(victima, nil)
+
+e.guardaUniones = {}
+local charC = e.datosG and e.datosG.char
+if charC then
+local function esCruce(x)
+if not esUnionDeCarga(x) then return false end
+local p0, p1 = extremosDe(x)
+if not p0 or not p1 then return false end
+return (p0:IsDescendantOf(charC) and p1:IsDescendantOf(victima))
+or (p1:IsDescendantOf(charC) and p0:IsDescendantOf(victima))
+end
+for _, modelo in ipairs({ charC, victima }) do
+table.insert(e.guardaUniones, modelo.DescendantAdded:Connect(function(x)
+if esCruce(x) then
+pcall(function() x:Destroy() end)
+end
+end))
+end
+end
 
 poseyendo[pl] = e
 poseidoPor[victima] = pl
@@ -1361,7 +1393,12 @@ end
 victima:SetAttribute("SpideyAmputado", true)
 victima:SetAttribute("SpideyAmp_" .. ctx.raizNombre, true)
 if not ctx.esBrazo then
-_SPIDEY_AMP[victima] = { cayo = false }
+local previa = _SPIDEY_AMP[victima]
+if previa then
+table.insert(previa.bolsos or {}, bolso)
+else
+_SPIDEY_AMP[victima] = { cayo = false, bolsos = { bolso } }
+end
 end
 print("[Spidey V13.9] " .. (ctx.esBrazo and "BRAZO" or "PIERNA")
 .. " arrancada de " .. victima.Name .. " (por " .. pl.Name .. ")")
@@ -1463,7 +1500,7 @@ end
 if not sigueValida or victimaNaceOtra then
 limpiarPoseyendo(pl, victimaNaceOtra and "la victima respawneo" or "el herido se levanto o desaparecio")
 else
-apagarWeldsCarga(e.controlador, e.victima, e.datosV)
+romperUnionesCarga(e.controlador, e.victima)
 
 local vh = e.victimaHum
 local vr = e.victimaHRP
@@ -1557,11 +1594,28 @@ posY,
 e.startCF.Position.Z + e.offset.Z
 )
 local look = e.mirando or Vector3.new(0, 0, -1)
+local tAnim = ahora - e.inicioT
+local pitch = 0
+if tAnim < 0.9 then
+local k = 1 - math.clamp(tAnim / 0.9, 0, 1)
+pitch = math.rad(55) * (k * k)
+end
+local moviendo = mov.Magnitude > 0.05
+local bob = 0
+local inclinacion = 0
+if moviendo then
+bob = math.abs(math.sin(tAnim * 9)) * 0.09
+inclinacion = math.rad(7)
+else
+bob = math.sin(tAnim * 1.8) * 0.035
+end
+pos = pos + Vector3.new(0, bob, 0)
 local dePie = CFrame.lookAt(pos, pos + look)
 if tRise < 1 then
 vr.CFrame = CFrame.new(pos) * (e.startCF.Rotation:Lerp(dePie.Rotation, tRise))
+* CFrame.Angles(pitch, 0, 0)
 else
-vr.CFrame = dePie
+vr.CFrame = dePie * CFrame.Angles(pitch + inclinacion, 0, 0)
 end
 e.ultimaPos = pos
 vr.AssemblyLinearVelocity = Vector3.zero
@@ -1913,10 +1967,21 @@ _SPIDEY_AMP[victima] = nil
 elseif info.cayo then
 else
 local vh = humDe(victima)
-if vh then
 local ko = valorBody(victima, "K.O")
-local candidato = (ko == nil or ko.Value == false)
+local candidato
+if vh then
+candidato = (ko == nil or ko.Value == false)
 and vh.Health >= 45
+else
+candidato = true
+end
+victima:SetAttribute("SpideyAmpDbg", string.format(
+"h=%s ko=%s cand=%s fl=%s v=%s",
+tostring(vh and math.floor(vh.Health)),
+tostring(ko and ko.Value),
+tostring(candidato),
+tostring(_SPIDEY_FLOTE[victima] ~= nil),
+tostring(info.visto ~= nil)))
 if candidato and _SPIDEY_FLOTE[victima] then candidato = false end
 if candidato and info.visto == nil then
 info.visto = os.clock()
@@ -1933,10 +1998,12 @@ local koX = valorBody(victima, "K.O")
 if koX and koX:IsA("BoolValue") then koX.Value = true end
 local deadX = valorBody(victima, "Dead")
 if deadX and deadX:IsA("BoolValue") then deadX.Value = true end
+if vh then
 pcall(function() vh.Health = 0 end)
 pcall(function() vh.EvaluateStateMachine = false end)
 vh.PlatformStand = true
 pcall(function() vh:ChangeState(Enum.HumanoidStateType.Dead) end)
+end
 info.hunde = RunService.Heartbeat:Connect(function()
 if not victima.Parent then return end
 local vr = hrpDe(victima)
@@ -1950,9 +2017,25 @@ p.CanCollide = false
 end
 end
 end)
+for _, b in ipairs(info.bolsos or {}) do
+if b and b.Parent then
+for _, p in ipairs(b:GetDescendants()) do
+if p:IsA("BasePart") then
+p.CanCollide = false
+p.Anchored = false
+p.AssemblyLinearVelocity = Vector3.new(0, -40, 0)
+end
+end
+local bRef = b
+task.delay(2.5, function()
+if bRef and bRef.Parent then
+bRef:Destroy()
+end
+end)
+end
+end
 print("[Spidey V13.9] " .. victima.Name
 .. " se levanta sin pierna: cae del mapa")
-end
 end
 end
 end
