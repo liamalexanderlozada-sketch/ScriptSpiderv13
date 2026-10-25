@@ -22,11 +22,14 @@ El `?v=13` salta la cache de GitHub (hasta 5 min).
   abajo, ella queda DE PIE y camina. **Marioneta de emotes**: reproduce TUS
   emotes (prioridad Action+) en su Animator, sincronizados y en servidor.
   Z = desposeer (el flote se reengancha solo si sigues cargando).
-- **ARRANCAR**: arranca la extremidad que de VERDAD sostienes (la que une el
-  weld de carga), no la más cercana. La separación la hace el SERVIDOR y
-  confirma con RASGAR_OK/RASGAR_NO (nada de éxitos falsos). La extremidad
-  queda como OBJETO independiente soldado a tu mano y en UNA pieza.
-  Anti-doble por atributo (SpideyAmp_<extremidad>).
+- **ARRANCAR (3 fases)**: clic → el servidor valida agarre/extremidad →
+  **tracción 1.1 s** (la pierna SIGUE unida y se tira de ella) → si no perdiste
+  el agarre, **separación real**: se cortan joints Y constraints que crucen la
+  extremidad. La extremidad queda como **objeto independiente en UNA pieza** que
+  **CAE AL SUELO Y SE QUEDA** (con colisión, sin ancla, NO se lleva contigo,
+  no la arrastra el cuerpo al caer). Anti-doble por atributo. Mensajes reales:
+  `ARRANCANDO EXTREMIDAD...` solo cuando el servidor confirma el inicio y
+  `PIERNA ARRANCADA` solo tras verificar la separación (RASGAR_INI/OK/NO).
 - **CONSECUENCIA**: al que le arrancaron una pierna y se recupera (vida >=45
   sin K.O), se le va el apoyo y CAE DEL MAPA (hundimiento a 60 Hz que ni el
   ragdoll del juego puede frenar). El respawn lo deja limpio.

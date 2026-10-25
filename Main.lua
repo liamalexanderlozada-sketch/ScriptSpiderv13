@@ -1218,7 +1218,9 @@ end
 return nil
 end
 
-local function rasgarVictima(pl, victima, nombreParte)
+local rasgando = {}
+
+local function validarRasgar(pl, victima, nombreParte)
 local c = pl and pl.Character
 local cr = c and hrpDe(c)
 if not victima or not victima.Parent or not victima:IsA("Model") then
@@ -1287,30 +1289,47 @@ end
 end
 if #joints == 0 then return false, "no hay articulacion que separar" end
 
-for _, j in ipairs(joints) do
-pcall(function() j:Destroy() end)
+return true, {
+victima = victima,
+partes = partes,
+raiz = raiz,
+joints = joints,
+esBrazo = esBrazo,
+raizNombre = raizNombre,
+cr = cr,
+}
 end
 
+local function ejecutarRasgar(pl, ctx)
+local victima = ctx.victima
+local partes = ctx.partes
+local raiz = ctx.raiz
+for _, j in ipairs(ctx.joints) do
+pcall(function() j:Destroy() end)
+end
+local enCadenaR = {}
+for _, p in ipairs(partes) do enCadenaR[p] = true end
+for _, con in ipairs(victima:GetDescendants()) do
+if con:IsA("Constraint") then
+local okc, a0, a1 = pcall(function()
+return con.Attachment0, con.Attachment1
+end)
+if okc and a0 and a1 and a0.Parent and a1.Parent then
+local cruza = (enCadenaR[a0.Parent] and not enCadenaR[a1.Parent])
+or (enCadenaR[a1.Parent] and not enCadenaR[a0.Parent])
+if cruza then
+pcall(function() con:Destroy() end)
+end
+end
+end
+end
 local bolso = Instance.new("Model")
-bolso.Name = "SpideyExtremidad_" .. raizNombre
+bolso.Name = "SpideyExtremidad_" .. ctx.raizNombre
 bolso.PrimaryPart = raiz
 for _, p in ipairs(partes) do
 if p.Parent then p.Parent = bolso end
 end
 bolso.Parent = workspace
-
-local mano = c:FindFirstChild("RightHand")
-or c:FindFirstChild("RightLowerArm")
-or c:FindFirstChild("Right Arm")
-or cr
-if mano and raiz and raiz.Parent then
-local w = Instance.new("Weld")
-w.Name = "SpideyExtremidadEnMano"
-w.Part0 = mano
-w.Part1 = raiz
-w.C0 = CFrame.new(0, -0.9, 0)
-w.Parent = raiz
-end
 for i = 1, #partes - 1 do
 local a, b = partes[i], partes[i + 1]
 if a.Parent and b.Parent then
@@ -1322,22 +1341,31 @@ wj.C0 = a.CFrame:Inverse() * b.CFrame
 wj.Parent = b
 end
 end
+local vr = hrpDe(victima)
+local centro = vr and vr.Position or raiz.Position
 for _, p in ipairs(partes) do
 if p.Parent then
-p.CanCollide = false
-p.Massless = true
-pcall(function() p:SetNetworkOwner(pl) end)
+p.CanCollide = true
+p.Massless = false
+p.Anchored = false
+pcall(function() p:SetNetworkOwner(nil) end)
+local dir = Vector3.new(math.random(-6, 6), -12, math.random(-6, 6))
+local f = p.Position - centro
+f = Vector3.new(f.X, 0, f.Z)
+if f.Magnitude > 0.5 then dir = f.Unit * 8 + Vector3.new(0, -12, 0) end
+p.AssemblyLinearVelocity = dir
+p.AssemblyAngularVelocity = Vector3.new(
+math.random(-6, 6), math.random(-6, 6), math.random(-6, 6))
 end
 end
-
 victima:SetAttribute("SpideyAmputado", true)
-victima:SetAttribute("SpideyAmp_" .. raizNombre, true)
-if not esBrazo then
+victima:SetAttribute("SpideyAmp_" .. ctx.raizNombre, true)
+if not ctx.esBrazo then
 _SPIDEY_AMP[victima] = { cayo = false }
 end
-print("[Spidey V13.9] " .. (esBrazo and "BRAZO" or "PIERNA")
+print("[Spidey V13.9] " .. (ctx.esBrazo and "BRAZO" or "PIERNA")
 .. " arrancada de " .. victima.Name .. " (por " .. pl.Name .. ")")
-return true, esBrazo and "BRAZO" or "PIERNA"
+return ctx.esBrazo and "BRAZO" or "PIERNA"
 end
 
 RE_Cuerpo.OnServerEvent:Connect(function(pl, accion, a, b, c)
@@ -1350,15 +1378,58 @@ elseif accion == "POSE_STOP" then
 limpiarPoseyendo(pl, "manual")
 elseif accion == "RASGAR" then
 local ahora = os.clock()
+if rasgando[pl] then return end
 if ultimoRasgado[pl] and ahora - ultimoRasgado[pl] < 0.75 then return end
 ultimoRasgado[pl] = ahora
 if typeof(a) == "Instance" and a:IsA("Model") then
-local okR, tipoR = rasgarVictima(pl, a, b)
-if okR then
-RE_Cuerpo:FireClient(pl, "RASGAR_OK", tipoR, a.Name)
-else
-RE_Cuerpo:FireClient(pl, "RASGAR_NO", tipoR)
+local okV, ctxOTexto = validarRasgar(pl, a, b)
+if not okV then
+RE_Cuerpo:FireClient(pl, "RASGAR_NO", ctxOTexto)
+return
 end
+local ctx = ctxOTexto
+rasgando[pl] = true
+RE_Cuerpo:FireClient(pl, "RASGAR_INI")
+task.spawn(function()
+local separar = true
+local t0 = os.clock()
+while os.clock() - t0 < 1.1 do
+task.wait(0.25)
+local c2 = pl.Character
+local viva = ctx.victima.Parent ~= nil
+and ctx.raiz.Parent ~= nil and c2 ~= nil
+local agarre = false
+if viva then
+local g2 = valorBody(c2, "Grabbed")
+agarre = #weldsCargaDe(c2, ctx.victima) > 0
+or (g2 ~= nil and personajeDe(g2.Value) == ctx.victima)
+end
+if not viva or not agarre or poseidoPor[ctx.victima] then
+separar = false
+break
+end
+pcall(function()
+local cr2 = hrpDe(c2)
+if cr2 then
+local dir = cr2.Position - ctx.raiz.Position
+if dir.Magnitude > 1 then
+ctx.raiz.AssemblyLinearVelocity =
+dir.Unit * 16 + Vector3.new(0, 5, 0)
+end
+end
+end)
+end
+local tipo = nil
+if separar then
+tipo = ejecutarRasgar(pl, ctx)
+end
+rasgando[pl] = nil
+if tipo then
+RE_Cuerpo:FireClient(pl, "RASGAR_OK", tipo, ctx.victima.Name)
+else
+RE_Cuerpo:FireClient(pl, "RASGAR_NO", "perdiste el agarre")
+end
+end)
 end
 elseif accion == "POSE_MOVE" then
 local e = poseyendo[pl]
@@ -4221,8 +4292,8 @@ local nombreVict = victima.Name
 
 if not sinServidor then
 RE_Cuerpo:FireServer("RASGAR", victima, parteReal and parteReal.Name or nil)
-mostrarHUD("Arrancando la extremidad de " .. nombreVict .. "...")
-task.delay(2.5, function()
+mostrarHUD("Arrancando...")
+task.delay(4.5, function()
 if not poseyendo then mostrarHUD(nil) end
 end)
 return true
@@ -4252,11 +4323,59 @@ mostrarHUD("Ese cuerpo no tiene articulacion en la extremidad")
 return false
 end
 
+mostrarHUD("ARRANCANDO EXTREMIDAD...")
+local separar = true
+local t0 = os.clock()
+while os.clock() - t0 < 1.1 do
+task.wait(0.25)
+if not victima.Parent or not partes[1].Parent then
+separar = false
+break
+end
+local gc = valorBody(char, "Grabbed")
+local agarre = weldCargaEntre(char, victima) ~= nil
+or (gc ~= nil and personajeDe(gc.Value) == victima)
+if not agarre or poseyendo then
+separar = false
+break
+end
+if hrp then
+local dir = hrp.Position - partes[1].Position
+if dir.Magnitude > 1 then
+partes[1].AssemblyLinearVelocity = dir.Unit * 16 + Vector3.new(0, 5, 0)
+end
+end
+end
+if not separar then
+mostrarHUD("Perdiste el agarre: arranke cancelado")
+task.delay(1.8, function()
+if not poseyendo then mostrarHUD(nil) end
+end)
+return false
+end
+
 for _, j in ipairs(joints) do
 pcall(function() j:Destroy() end)
 end
+do
+local enCadenaL = {}
+for _, p in ipairs(partes) do enCadenaL[p] = true end
+for _, con in ipairs(victima:GetDescendants()) do
+if con:IsA("Constraint") then
+local okc, a0, a1 = pcall(function()
+return con.Attachment0, con.Attachment1
+end)
+if okc and a0 and a1 and a0.Parent and a1.Parent then
+local cruza = (enCadenaL[a0.Parent] and not enCadenaL[a1.Parent])
+or (enCadenaL[a1.Parent] and not enCadenaL[a0.Parent])
+if cruza then
+pcall(function() con:Destroy() end)
+end
+end
+end
+end
+end
 soltarExtremidadFisica(partes, victima)
-
 if partes[1] and partes[1].Parent then
 local bolso = Instance.new("Model")
 bolso.Name = "SpideyExtremidad_" .. partes[1].Name
@@ -4265,22 +4384,6 @@ for _, p in ipairs(partes) do
 if p.Parent then p.Parent = bolso end
 end
 bolso.Parent = workspace
-end
-
-local mano = char:FindFirstChild("RightHand")
-or char:FindFirstChild("RightLowerArm")
-or char:FindFirstChild("Right Arm")
-or hrp
-if mano and partes[1] and partes[1].Parent then
-local w = Instance.new("Weld")
-w.Name = "SpideyExtremidadEnMano"
-w.Part0 = mano
-w.Part1 = partes[1]
-w.C0 = CFrame.new(0, -0.9, 0)
-w.Parent = partes[1]
-for _, p in ipairs(partes) do
-if p.Parent then p.CanCollide = false end
-end
 end
 for i = 1, #partes - 1 do
 local a, b = partes[i], partes[i + 1]
@@ -4296,8 +4399,8 @@ end
 table.insert(extremidadesReforzadas, { js = joints, p = partes, t = os.clock() })
 
 local nombreExt = esBrazo and "BRAZO" or "PIERNA"
-print("[Spidey V13.9] " .. nombreExt .. " separado de " .. nombreVict)
-mostrarHUD(nombreExt .. " ARRANCADO a " .. nombreVict)
+print("[Spidey V13.9] " .. nombreExt .. " separada de " .. nombreVict)
+mostrarHUD(nombreExt .. " ARRANCADA a " .. nombreVict .. " (cae al suelo)")
 task.delay(2.2, function()
 if not poseyendo then mostrarHUD(nil) end
 end)
@@ -5622,8 +5725,10 @@ if not poseyendo then mostrarHUD(nil) end
 end)
 elseif accion == "POSE_STOP" then
 terminarPoseyendoLocal(tostring(a or "servidor"), false)
+elseif accion == "RASGAR_INI" then
+mostrarHUD("ARRANCANDO EXTREMIDAD...")
 elseif accion == "RASGAR_OK" then
-mostrarHUD(tostring(a or "EXTREMIDAD") .. " ARRANCADA a " .. tostring(b or ""))
+mostrarHUD(tostring(a or "EXTREMIDAD") .. " ARRANCADA a " .. tostring(b or "") .. " (cae al suelo)")
 task.delay(2.2, function()
 if not poseyendo then mostrarHUD(nil) end
 end)
