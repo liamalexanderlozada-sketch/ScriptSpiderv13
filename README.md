@@ -13,6 +13,28 @@ El `?v=13` salta la cache de GitHub (hasta 5 min).
 
 ## Mejoras V13.9 sobre el V8
 
+### V13.9.8 — Sistemas Control y Arrancar reparados
+
+- **FLOTAR (automático al cargar)**: mientras cargas a un herido, su cuerpo
+  flota DELANTE de ti, separado, como sostenido por un imán. Lo posiciona el
+  SERVIDOR: todos lo ven. Sin animaciones. Sin tocar NI UNA articulación.
+- **CONTROL (clic en el tool)**: posees el cuerpo — tu personaje va 13 studs
+  abajo, ella queda DE PIE y camina. **Marioneta de emotes**: reproduce TUS
+  emotes (prioridad Action+) en su Animator, sincronizados y en servidor.
+  Z = desposeer (el flote se reengancha solo si sigues cargando).
+- **ARRANCAR**: arranca la extremidad que de VERDAD sostienes (la que une el
+  weld de carga), no la más cercana. La separación la hace el SERVIDOR y
+  confirma con RASGAR_OK/RASGAR_NO (nada de éxitos falsos). La extremidad
+  queda como OBJETO independiente soldado a tu mano y en UNA pieza.
+  Anti-doble por atributo (SpideyAmp_<extremidad>).
+- **CONSECUENCIA**: al que le arrancaron una pierna y se recupera (vida >=45
+  sin K.O), se le va el apoyo y CAE DEL MAPA (hundimiento a 60 Hz que ni el
+  ragdoll del juego puede frenar). El respawn lo deja limpio.
+- **EXCLUSIVOS**: Control NUNCA arranca nada (joints intactos verificados) y
+  Arrancar se rechaza mientras controlas ("termina el control primero").
+
+### Historial
+
 - **Tool Control**: posee el cuerpo DERRIBADO que estas cargando.
 - **Cuerpo original 13 studs ABAJO** del cadaver (el cadaver camina solo).
 - **Tool Arrancar**: clic sobre el brazo/pierna del herido y esa extremidad se separa.
@@ -25,7 +47,7 @@ El `?v=13` salta la cache de GitHub (hasta 5 min).
   el V8 tenia 178 locales activos y compilaba; el V13.9 tenia **201** y Lua 5.1
   abortaba la compilacion. Ahora el V13.9 tiene **156** (margen de 44) y menos
   de 60 upvalues por funcion. Verificado con compilador Lua 5.1 real.
-- **MIN 146.795 bytes** (menos que el V8: 152.964) para que el exploit lo compile.
+- **MIN 162.312 bytes** para que el exploit lo compile (validado con Lua 5.1).
 
 ---
 # Spiderscript V12.0 🕷️

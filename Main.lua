@@ -907,6 +907,13 @@ local vr = d.hrp
 if not victima or not victima.Parent or not vh or not vr or not vh.Parent or not vr.Parent then return end
 
 if e.animator then detenerTracksServer(e.animator) end
+if e.espejo then
+for _, par in pairs(e.espejo) do
+pcall(function() par.track:Stop(0.1) end)
+pcall(function() par.track:Destroy() end)
+end
+e.espejo = nil
+end
 for _, item in ipairs(d.sockets) do
 if item.c and item.c.Parent then item.c.Enabled = item.e end
 end
@@ -1166,6 +1173,7 @@ RE_Cuerpo:FireClient(pl, "POSE_NO", "Tu cuerpo no es valido")
 return false
 end
 
+spideyRestaurarFlote(victima, "control")
 e.datosV = guardarVictima(victima, pl)
 prepararVictima(e.datosV)
 prepararAnimacionesServer(e)
@@ -1181,6 +1189,8 @@ print("[Spidey V13.9] posesion real: " .. victima.Name .. " (por " .. pl.Name ..
 return true
 end
 
+_SPIDEY_FLOTE = {}
+_SPIDEY_AMP = {}
 local ultimoRasgado = {}
 local CADENAS_RASGAR = {
 { "RightUpperLeg", "RightLowerLeg", "RightFoot", "Right Leg" },
@@ -1189,34 +1199,74 @@ local CADENAS_RASGAR = {
 { "LeftUpperArm", "LeftLowerArm", "LeftHand", "Left Arm" },
 }
 
-local function rasgarVictima(pl, victima)
+local function cadenaRasgarDesde(victima, nombre)
+if type(nombre) ~= "string" or nombre == "" then return nil end
+for _, cadena in ipairs(CADENAS_RASGAR) do
+for _, n in ipairs(cadena) do
+if n == nombre then
+local partes = {}
+for _, pn in ipairs(cadena) do
+local p = victima:FindFirstChild(pn)
+if p and p:IsA("BasePart") then table.insert(partes, p) end
+end
+if #partes > 0 then
+return partes, string.find(cadena[1], "Arm", 1, true) ~= nil, cadena[1]
+end
+end
+end
+end
+return nil
+end
+
+local function rasgarVictima(pl, victima, nombreParte)
 local c = pl and pl.Character
 local cr = c and hrpDe(c)
-if not victima or not victima.Parent or not victima:IsA("Model") then return false end
+if not victima or not victima.Parent or not victima:IsA("Model") then
+return false, "victima invalida"
+end
 local vh = humDe(victima)
 local vr = hrpDe(victima)
-if not vh or not vr then return false end
-if not cr or (cr.Position - vr.Position).Magnitude > 22 then return false end
+if not vh or not vr then return false, "victima invalida" end
+if not cr or (cr.Position - vr.Position).Magnitude > 22 then
+return false, "estas muy lejos"
+end
+if poseidoPor[victima] then
+return false, "termina el control (Z) antes de arrancar"
+end
+if not c:FindFirstChild("Arrancar") then
+return false, "equipa el tool Arrancar"
+end
+local g = valorBody(c, "Grabbed")
+local cargando = #weldsCargaDe(c, victima) > 0
+or (g ~= nil and personajeDe(g.Value) == victima)
+if not cargando then return false, "no estas cargando a ese cuerpo" end
 
+local partes, esBrazo, raizNombre = cadenaRasgarDesde(victima, nombreParte)
+if not partes then
 local ref = c:FindFirstChild("UpperTorso") or c:FindFirstChild("Torso") or cr
 local mejorCadena, mejorDist = nil, math.huge
 for _, cadena in ipairs(CADENAS_RASGAR) do
 local raiz = victima:FindFirstChild(cadena[1]) or victima:FindFirstChild(cadena[4])
 if raiz and raiz:IsA("BasePart") then
 local d = (raiz.Position - ref.Position).Magnitude
-if d < mejorDist then
-mejorDist, mejorCadena = d, cadena
+if d < mejorDist then mejorDist, mejorCadena = d, cadena end
 end
 end
-end
-if not mejorCadena then return false end
-
-local partes = {}
-for _, nombre in ipairs(mejorCadena) do
-local p = victima:FindFirstChild(nombre)
+if mejorCadena then
+partes = {}
+for _, pn in ipairs(mejorCadena) do
+local p = victima:FindFirstChild(pn)
 if p and p:IsA("BasePart") then table.insert(partes, p) end
 end
-if #partes == 0 then return false end
+esBrazo = string.find(mejorCadena[1], "Arm", 1, true) ~= nil
+raizNombre = mejorCadena[1]
+end
+end
+if not partes or #partes == 0 then return false, "no encuentro esa extremidad" end
+raizNombre = raizNombre or partes[1].Name
+if victima:GetAttribute("SpideyAmp_" .. raizNombre) then
+return false, "esa extremidad ya esta arrancada"
+end
 
 local raiz = partes[1]
 local enCadena = {}
@@ -1235,26 +1285,59 @@ table.insert(joints, j)
 end
 end
 end
-if #joints == 0 then return false end
+if #joints == 0 then return false, "no hay articulacion que separar" end
 
 for _, j in ipairs(joints) do
 pcall(function() j:Destroy() end)
 end
+
+local bolso = Instance.new("Model")
+bolso.Name = "SpideyExtremidad_" .. raizNombre
+bolso.PrimaryPart = raiz
+for _, p in ipairs(partes) do
+if p.Parent then p.Parent = bolso end
+end
+bolso.Parent = workspace
+
+local mano = c:FindFirstChild("RightHand")
+or c:FindFirstChild("RightLowerArm")
+or c:FindFirstChild("Right Arm")
+or cr
+if mano and raiz and raiz.Parent then
+local w = Instance.new("Weld")
+w.Name = "SpideyExtremidadEnMano"
+w.Part0 = mano
+w.Part1 = raiz
+w.C0 = CFrame.new(0, -0.9, 0)
+w.Parent = raiz
+end
+for i = 1, #partes - 1 do
+local a, b = partes[i], partes[i + 1]
+if a.Parent and b.Parent then
+local wj = Instance.new("Weld")
+wj.Name = "SpideyPiezaExtremidad"
+wj.Part0 = a
+wj.Part1 = b
+wj.C0 = a.CFrame:Inverse() * b.CFrame
+wj.Parent = b
+end
+end
 for _, p in ipairs(partes) do
 if p.Parent then
-p.CanCollide = true
-p.Massless = false
-local dir = Vector3.new(math.random(-6, 6), -12, math.random(-6, 6))
-local f = p.Position - vr.Position
-f = Vector3.new(f.X, 0, f.Z)
-if f.Magnitude > 0.5 then dir = f.Unit * 8 + Vector3.new(0, -12, 0) end
-p.AssemblyLinearVelocity = dir
-p.AssemblyAngularVelocity = Vector3.new(
-math.random(-6, 6), math.random(-6, 6), math.random(-6, 6))
+p.CanCollide = false
+p.Massless = true
+pcall(function() p:SetNetworkOwner(pl) end)
 end
 end
-print("[Spidey V13.9] extremidad arrancada de " .. victima.Name .. " (por " .. pl.Name .. ")")
-return true
+
+victima:SetAttribute("SpideyAmputado", true)
+victima:SetAttribute("SpideyAmp_" .. raizNombre, true)
+if not esBrazo then
+_SPIDEY_AMP[victima] = { cayo = false }
+end
+print("[Spidey V13.9] " .. (esBrazo and "BRAZO" or "PIERNA")
+.. " arrancada de " .. victima.Name .. " (por " .. pl.Name .. ")")
+return true, esBrazo and "BRAZO" or "PIERNA"
 end
 
 RE_Cuerpo.OnServerEvent:Connect(function(pl, accion, a, b, c)
@@ -1270,7 +1353,12 @@ local ahora = os.clock()
 if ultimoRasgado[pl] and ahora - ultimoRasgado[pl] < 0.75 then return end
 ultimoRasgado[pl] = ahora
 if typeof(a) == "Instance" and a:IsA("Model") then
-rasgarVictima(pl, a)
+local okR, tipoR = rasgarVictima(pl, a, b)
+if okR then
+RE_Cuerpo:FireClient(pl, "RASGAR_OK", tipoR, a.Name)
+else
+RE_Cuerpo:FireClient(pl, "RASGAR_NO", tipoR)
+end
 end
 elseif accion == "POSE_MOVE" then
 local e = poseyendo[pl]
@@ -1408,7 +1496,10 @@ e.ultimaPos = pos
 vr.AssemblyLinearVelocity = Vector3.zero
 vr.AssemblyAngularVelocity = Vector3.zero
 seguirBajoControlador(e)
+spideyActualizarEspejo(e)
+if not e.emoteActivo then
 actualizarAnimacionesServer(e)
+end
 end
 end
 end)
@@ -1429,7 +1520,375 @@ end
 
 Players.PlayerRemoving:Connect(function(pl)
 if poseyendo[pl] then limpiarPoseyendo(pl, "salio del juego") end
+for victima, f in pairs(_SPIDEY_FLOTE) do
+if f.controlador == pl then
+spideyRestaurarFlote(victima, "salio el controlador")
+end
+end
 end)
+
+function spideyGuardarFlote(victima, controlador)
+local vh = humDe(victima)
+local vr = hrpDe(victima)
+if not vh or not vr then return nil end
+local d = {
+victima = victima,
+hum = vh,
+hrp = vr,
+platform = vh.PlatformStand,
+auto = vh.AutoRotate,
+walk = vh.WalkSpeed,
+jump = vh.JumpPower,
+use = vh.UseJumpPower,
+hrpAnclado = vr.Anchored,
+partes = {},
+sockets = {},
+ncs = {},
+}
+d.animate = victima:FindFirstChild("Animate")
+d.animateEnabled = d.animate and d.animate.Enabled or false
+for _, p in ipairs(victima:GetDescendants()) do
+if p:IsA("BasePart") then
+table.insert(d.partes, { p = p, m = p.Massless })
+end
+end
+for _, con in ipairs(victima:GetDescendants()) do
+if con:IsA("BallSocketConstraint") then
+table.insert(d.sockets, { c = con, e = con.Enabled })
+elseif con:IsA("NoCollisionConstraint") and con.Name == "NoCollisionConstraint_HOLD" then
+table.insert(d.ncs, { c = con, e = con.Enabled })
+end
+end
+return d
+end
+
+function spideyPrepararFlote(d)
+local victima = d.victima
+local vh = d.hum
+local vr = d.hrp
+if not victima or not victima.Parent or not vh or not vr then return end
+for _, item in ipairs(d.sockets) do
+if item.c and item.c.Parent then item.c.Enabled = false end
+end
+for _, item in ipairs(d.ncs) do
+if item.c and item.c.Parent then item.c.Enabled = false end
+end
+if d.animate and d.animate.Parent then d.animate.Enabled = false end
+local animator = vh:FindFirstChildOfClass("Animator")
+if animator then
+for _, tr in ipairs(animator:GetPlayingAnimationTracks()) do
+pcall(function() tr:Stop(0.1) end)
+end
+end
+vh.PlatformStand = true
+vh.AutoRotate = false
+vh.WalkSpeed = 0
+vh.JumpPower = 0
+vh.UseJumpPower = true
+vr.Anchored = true
+apagarWeldsCarga(d.controlador, victima, d)
+end
+
+function spideyRestaurarFlote(victima, motivo)
+local f = _SPIDEY_FLOTE[victima]
+if not f then return end
+_SPIDEY_FLOTE[victima] = nil
+local d = f.datos
+local pl = f.controlador
+local c = pl and pl.Character
+if not d or not victima or not victima.Parent then return end
+local vh = d.hum
+local vr = d.hrp
+if vh and vh.Parent then
+local animator = vh:FindFirstChildOfClass("Animator")
+if animator then
+for _, tr in ipairs(animator:GetPlayingAnimationTracks()) do
+pcall(function() tr:Stop(0.1) end)
+end
+end
+end
+for _, item in ipairs(d.sockets) do
+if item.c and item.c.Parent then item.c.Enabled = item.e end
+end
+for _, item in ipairs(d.ncs) do
+if item.c and item.c.Parent then item.c.Enabled = item.e end
+end
+if d.animate and d.animate.Parent then d.animate.Enabled = d.animateEnabled end
+if vh and vh.Parent then
+vh.PlatformStand = d.platform
+vh.AutoRotate = d.auto
+vh.WalkSpeed = d.walk
+vh.JumpPower = d.jump
+vh.UseJumpPower = d.use
+end
+if vr and vr.Parent then
+vr.Anchored = d.hrpAnclado
+vr.AssemblyLinearVelocity = Vector3.zero
+vr.AssemblyAngularVelocity = Vector3.zero
+end
+local sigueCargando = false
+if c and c.Parent then
+local g = valorBody(c, "Grabbed")
+if g and personajeDe(g.Value) == victima then sigueCargando = true end
+local vg = valorBody(victima, "Grabbed")
+if vg and personajeDe(vg.Value) == pl then sigueCargando = true end
+end
+for _, w in ipairs(d.weldsExtra or {}) do
+if w and w.Parent then w.Enabled = sigueCargando end
+end
+if d.carry and d.carry.c and d.carry.c.Parent then
+d.carry.c.Enabled = sigueCargando
+end
+end
+
+function spideyFloteValido(f)
+local pl = f.controlador
+local c = pl and pl.Character
+local cr = c and hrpDe(c)
+local d = f.datos
+local victima = d.victima
+if not cr then return false end
+if not victimaValida(victima) then return false end
+if poseidoPor[victima] then return false end
+if victima:GetAttribute("SpideyCaeSinPierna") then return false end
+local koF = valorBody(victima, "K.O")
+if (koF == nil or koF.Value == false) and d.hum and d.hum.Parent
+and d.hum.Health >= 45 then
+return false
+end
+if not cuerpoTiradoJuego(victima) then return false end
+local g = valorBody(c, "Grabbed")
+local sigue = #weldsCargaDe(c, victima) > 0
+or (g ~= nil and personajeDe(g.Value) == victima)
+or mayoriaMassless(victima)
+return sigue == true
+end
+
+function spideyIniciarFlote(pl, victima)
+if _SPIDEY_FLOTE[victima] then return end
+if poseidoPor[victima] then return end
+if victima:GetAttribute("SpideyCaeSinPierna") then return end
+local koI = valorBody(victima, "K.O")
+local humI = humDe(victima)
+if (koI == nil or koI.Value == false) and humI and humI.Health >= 45 then return end
+local d = spideyGuardarFlote(victima, pl)
+if not d then return end
+d.controlador = pl
+local cw = weldCargaEntre(pl, victima)
+if cw then d.carry = { c = cw, e = cw.Enabled } end
+_SPIDEY_FLOTE[victima] = { controlador = pl, datos = d }
+spideyPrepararFlote(d)
+print("[Spidey V13.9] cuerpo flotando delante de " .. pl.Name
+.. ": " .. victima.Name)
+end
+
+function spideyActualizarFlote(f)
+local pl = f.controlador
+local c = pl and pl.Character
+local cr = c and hrpDe(c)
+local d = f.datos
+local vr = d.hrp
+if not cr or not vr or not vr.Parent then return end
+apagarWeldsCarga(pl, d.victima, d)
+local look = cr.CFrame.LookVector
+local plano = Vector3.new(look.X, 0, look.Z)
+if plano.Magnitude < 0.05 then
+plano = Vector3.new(0, 0, -1)
+else
+plano = plano.Unit
+end
+local pos = cr.Position + plano * 3.1 + Vector3.new(0, 0.45, 0)
+vr.CFrame = CFrame.lookAt(pos, pos + plano)
+vr.Anchored = true
+vr.AssemblyLinearVelocity = Vector3.zero
+vr.AssemblyAngularVelocity = Vector3.zero
+local vh = d.hum
+if vh and vh.Parent then
+vh.PlatformStand = true
+vh.WalkSpeed = 0
+end
+end
+
+function spideyDetectarFlotes()
+for _, pl in ipairs(Players:GetPlayers()) do
+if not poseyendo[pl] then
+local c = pl.Character
+local cr = c and hrpDe(c)
+if cr then
+local victima = nil
+local g = valorBody(c, "Grabbed")
+if g then victima = personajeDe(g.Value) end
+if not victima or not victima.Parent or victima == c then
+victima = nil
+local mejor, mejorD = nil, 14
+local function probar(m)
+if not m or not m:IsA("Model") or m == c or not m.Parent then return end
+if poseidoPor[m] then return end
+if m:GetAttribute("SpideyCaeSinPierna") then return end
+local koM = valorBody(m, "K.O")
+local humM = humDe(m)
+if (koM == nil or koM.Value == false) and humM and humM.Health >= 45 then return end
+if not cuerpoTiradoJuego(m) then return end
+if #weldsCargaDe(c, m) == 0 then return end
+local mr = hrpDe(m)
+if not mr then return end
+local dd = (mr.Position - cr.Position).Magnitude
+if dd <= mejorD then mejor, mejorD = m, dd end
+end
+for _, m in ipairs(workspace:GetChildren()) do
+if m:IsA("Model") then
+probar(m)
+elseif m:IsA("Folder") then
+for _, sub in ipairs(m:GetChildren()) do probar(sub) end
+end
+end
+for _, otro in ipairs(Players:GetPlayers()) do
+probar(otro.Character)
+end
+victima = mejor
+end
+if victima and victima.Parent and victima ~= c
+and not poseidoPor[victima] and cuerpoTiradoJuego(victima)
+and not _SPIDEY_FLOTE[victima] then
+spideyIniciarFlote(pl, victima)
+end
+end
+end
+end
+for victima, f in pairs(_SPIDEY_FLOTE) do
+if not spideyFloteValido(f) then
+spideyRestaurarFlote(victima, "soltado o recuperado")
+end
+end
+end
+
+RunService.Heartbeat:Connect(function()
+for _, f in pairs(_SPIDEY_FLOTE) do
+spideyActualizarFlote(f)
+end
+end)
+
+task.spawn(function()
+while true do
+spideyDetectarFlotes()
+task.wait(0.3)
+end
+end)
+
+function spideyActualizarEspejo(e)
+pcall(function()
+local c = e.controlador and e.controlador.Character
+local ch = c and c:FindFirstChildOfClass("Humanoid")
+local ca = ch and ch:FindFirstChildOfClass("Animator")
+local va = e.animator
+if not ca or not va or not va.Parent then return end
+local sonando = {}
+for _, tr in ipairs(ca:GetPlayingAnimationTracks()) do
+local anim = tr.Animation
+local id = anim and anim.AnimationId
+if id and id ~= "" and tr.IsPlaying
+and tr.Priority.Value >= Enum.AnimationPriority.Action.Value then
+sonando[id] = tr
+end
+end
+e.espejo = e.espejo or {}
+for id, par in pairs(e.espejo) do
+if not sonando[id] then
+pcall(function() par.track:Stop(0.12) end)
+pcall(function() par.track:Destroy() end)
+e.espejo[id] = nil
+end
+end
+for id, tr in pairs(sonando) do
+if not e.espejo[id] then
+local a = Instance.new("Animation")
+a.AnimationId = id
+local ok2, nuevo = pcall(function() return va:LoadAnimation(a) end)
+if ok2 and nuevo then
+nuevo.Priority = Enum.AnimationPriority.Action
+pcall(function() nuevo:Play(0.1) end)
+pcall(function() nuevo.TimePosition = tr.TimePosition end)
+e.espejo[id] = { track = nuevo }
+end
+end
+end
+local conEmote = false
+for _ in pairs(e.espejo) do
+conEmote = true
+break
+end
+if conEmote ~= e.emoteActivo then
+e.emoteActivo = conEmote
+if conEmote then
+local claves = { "trackIdle", "trackWalk", "trackRun", "trackJump", "trackFall" }
+for _, clave in ipairs(claves) do
+if e[clave] then pcall(function() e[clave]:Stop(0.12) end) end
+end
+else
+e.animActual = nil
+end
+end
+end)
+end
+
+function spideyVigilarAmputados()
+while true do
+for victima, info in pairs(_SPIDEY_AMP) do
+if not victima or not victima.Parent then
+if info.hunde then
+pcall(function() info.hunde:Disconnect() end)
+end
+_SPIDEY_AMP[victima] = nil
+elseif info.cayo then
+else
+local vh = humDe(victima)
+if vh then
+local ko = valorBody(victima, "K.O")
+local candidato = (ko == nil or ko.Value == false)
+and vh.Health >= 45
+if candidato and _SPIDEY_FLOTE[victima] then candidato = false end
+if candidato and info.visto == nil then
+info.visto = os.clock()
+elseif not candidato then
+info.visto = nil
+end
+local recuperando = candidato == true and info.visto ~= nil
+and (os.clock() - info.visto) > 0.5
+if recuperando then
+info.cayo = true
+victima:SetAttribute("SpideyCaeSinPierna", true)
+spideyRestaurarFlote(victima, "cae sin pierna")
+local koX = valorBody(victima, "K.O")
+if koX and koX:IsA("BoolValue") then koX.Value = true end
+local deadX = valorBody(victima, "Dead")
+if deadX and deadX:IsA("BoolValue") then deadX.Value = true end
+pcall(function() vh.Health = 0 end)
+pcall(function() vh.EvaluateStateMachine = false end)
+vh.PlatformStand = true
+pcall(function() vh:ChangeState(Enum.HumanoidStateType.Dead) end)
+info.hunde = RunService.Heartbeat:Connect(function()
+if not victima.Parent then return end
+local vr = hrpDe(victima)
+if not vr or not vr.Parent then return end
+if vr.Position.Y <= -400 then return end
+vr.Anchored = true
+vr.CFrame = vr.CFrame * CFrame.new(0, -0.55, 0)
+for _, p in ipairs(victima:GetDescendants()) do
+if p:IsA("BasePart") and p.CanCollide then
+p.CanCollide = false
+end
+end
+end)
+print("[Spidey V13.9] " .. victima.Name
+.. " se levanta sin pierna: cae del mapa")
+end
+end
+end
+end
+task.wait(0.25)
+end
+end
+task.spawn(spideyVigilarAmputados)
 
 local function infoPose()
 if next(poseyendo) == nil then return "sin posesiones" end
@@ -3707,15 +4166,48 @@ end
 end
 end
 
+function spideyParteAgarrada(victima)
+if not char or not victima or not victima.Parent then return nil end
+local w = weldCargaEntre(char, victima)
+if not w then return nil end
+local p0, p1 = extremosDe(w)
+local candidatas = { p1, p0 }
+for _, parte in ipairs(candidatas) do
+if typeof(parte) == "Instance" and parte:IsA("BasePart")
+and parte:IsDescendantOf(victima) then
+local n = parte.Name
+if n ~= "HumanoidRootPart" and n ~= "Torso"
+and n ~= "UpperTorso" and n ~= "LowerTorso" then
+return parte
+end
+end
+end
+return nil
+end
+
+function spideyCadenaDesdeParte(nombre)
+for _, cadena in ipairs(CADENAS_EXTREMIDAD) do
+for _, n in ipairs(cadena) do
+if n == nombre then return cadena end
+end
+end
+return nil
+end
+
 function arrancarExtremidadAhora()
 local ahora = os.clock()
 if ahora - ultimoArranque < 1 then return false end
 ultimoArranque = ahora
 
-local victima = poseyendo and poseyendoVictima or nil
-if not victima then
-victima = detectarCarga()
+if poseyendo then
+mostrarHUD("Termina el control (Z) antes de arrancar")
+task.delay(1.8, function()
+if not poseyendo then mostrarHUD(nil) end
+end)
+return false
 end
+
+local victima = detectarCarga()
 if not victima then
 mostrarHUD("Agarra a alguien del brazo o de la pierna primero")
 task.delay(1.6, function()
@@ -3724,7 +4216,29 @@ end)
 return false
 end
 
-local partes, esBrazo = extremidadAgarrada(victima)
+local parteReal = spideyParteAgarrada(victima)
+local nombreVict = victima.Name
+
+if not sinServidor then
+RE_Cuerpo:FireServer("RASGAR", victima, parteReal and parteReal.Name or nil)
+mostrarHUD("Arrancando la extremidad de " .. nombreVict .. "...")
+task.delay(2.5, function()
+if not poseyendo then mostrarHUD(nil) end
+end)
+return true
+end
+
+local partes, esBrazo
+if parteReal then
+local cadena = spideyCadenaDesdeParte(parteReal.Name)
+if cadena then
+partes = partesDeCadena(victima, cadena)
+esBrazo = string.find(cadena[1], "Arm", 1, true) ~= nil
+end
+end
+if not partes then
+partes, esBrazo = extremidadAgarrada(victima)
+end
 if not partes then
 mostrarHUD("No encuentro el brazo/pierna agarrado")
 task.delay(1.6, function()
@@ -3738,20 +4252,51 @@ mostrarHUD("Ese cuerpo no tiene articulacion en la extremidad")
 return false
 end
 
-local nombreExt = esBrazo and "BRAZO" or "PIERNA"
-local nombreVict = victima.Name
-
 for _, j in ipairs(joints) do
 pcall(function() j:Destroy() end)
 end
 soltarExtremidadFisica(partes, victima)
+
+if partes[1] and partes[1].Parent then
+local bolso = Instance.new("Model")
+bolso.Name = "SpideyExtremidad_" .. partes[1].Name
+bolso.PrimaryPart = partes[1]
+for _, p in ipairs(partes) do
+if p.Parent then p.Parent = bolso end
+end
+bolso.Parent = workspace
+end
+
+local mano = char:FindFirstChild("RightHand")
+or char:FindFirstChild("RightLowerArm")
+or char:FindFirstChild("Right Arm")
+or hrp
+if mano and partes[1] and partes[1].Parent then
+local w = Instance.new("Weld")
+w.Name = "SpideyExtremidadEnMano"
+w.Part0 = mano
+w.Part1 = partes[1]
+w.C0 = CFrame.new(0, -0.9, 0)
+w.Parent = partes[1]
+for _, p in ipairs(partes) do
+if p.Parent then p.CanCollide = false end
+end
+end
+for i = 1, #partes - 1 do
+local a, b = partes[i], partes[i + 1]
+if a.Parent and b.Parent then
+local wj = Instance.new("Weld")
+wj.Name = "SpideyPiezaExtremidad"
+wj.Part0 = a
+wj.Part1 = b
+wj.C0 = a.CFrame:Inverse() * b.CFrame
+wj.Parent = b
+end
+end
 table.insert(extremidadesReforzadas, { js = joints, p = partes, t = os.clock() })
 
-if not sinServidor then
-RE_Cuerpo:FireServer("RASGAR", victima)
-end
+local nombreExt = esBrazo and "BRAZO" or "PIERNA"
 print("[Spidey V13.9] " .. nombreExt .. " separado de " .. nombreVict)
-
 mostrarHUD(nombreExt .. " ARRANCADO a " .. nombreVict)
 task.delay(2.2, function()
 if not poseyendo then mostrarHUD(nil) end
@@ -5077,6 +5622,16 @@ if not poseyendo then mostrarHUD(nil) end
 end)
 elseif accion == "POSE_STOP" then
 terminarPoseyendoLocal(tostring(a or "servidor"), false)
+elseif accion == "RASGAR_OK" then
+mostrarHUD(tostring(a or "EXTREMIDAD") .. " ARRANCADA a " .. tostring(b or ""))
+task.delay(2.2, function()
+if not poseyendo then mostrarHUD(nil) end
+end)
+elseif accion == "RASGAR_NO" then
+mostrarHUD(tostring(a or "No se pudo arrancar"))
+task.delay(2.2, function()
+if not poseyendo then mostrarHUD(nil) end
+end)
 end
 end)
 
@@ -5176,6 +5731,8 @@ _G.SpideySoltar()
 print("[SpideyTest] STOP")
 elseif c == "POSE" then
 print("[SpideyTest] POSE", V11.Poseer())
+elseif c == "ARRANCAR" then
+print("[SpideyTest] ARRANCAR", arrancarExtremidadAhora())
 elseif c == "UNPOSE" then
 print("[SpideyTest] UNPOSE", V11.SoltarPose())
 elseif c == "LOCK" then
